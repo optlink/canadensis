@@ -20,7 +20,10 @@ use canadensis::core::time::{milliseconds, Clock};
 use canadensis::core::transport::{Receiver, Transmitter, Transport};
 use canadensis::core::{Priority, SubjectId};
 use canadensis::encoding::{Deserialize, Message, Serialize};
-use canadensis_data_types::uavcan::pnp::node_id_allocation_data_1_0::{self, NodeIDAllocationData};
+use canadensis_data_types::uavcan::node::id_1_0::ID;
+use canadensis_data_types::uavcan::pnp::{
+    node_id_allocation_data_1_0, node_id_allocation_data_2_0,
+};
 use core::convert::TryFrom;
 use core::marker::PhantomData;
 use crc_any::CRCu64;
@@ -55,7 +58,7 @@ where
         unique_id: [u8; 16],
         driver: &mut R::Driver,
     ) -> Result<Self, R::Error> {
-        receiver.subscribe_message(M::SUBJECT, 9, milliseconds(1000), driver)?;
+        receiver.subscribe_message(M::SUBJECT, M::PAYLOAD_SIZE_MAX, milliseconds(1000), driver)?;
 
         Ok(PnpClient {
             unique_id,
@@ -121,12 +124,12 @@ where
 }
 
 /// A node ID allocation message
-///
-/// This is currently implemented for `uavcan.pnp.NodeIdAllocationData` version 1.0. In the future,
-/// it may also be implemented for version 2.0 of that data type.
 pub trait AllocationMessage<T: Transport>: Message + Serialize + Deserialize {
     /// The fixed subject ID for this message
     const SUBJECT: SubjectId;
+
+    /// The maximum payload size for this message
+    const PAYLOAD_SIZE_MAX: usize;
 
     /// Creates a message with the provided unique ID and no allocated node ID
     ///
@@ -140,12 +143,13 @@ pub trait AllocationMessage<T: Transport>: Message + Serialize + Deserialize {
     fn node_id(&self) -> Option<T::NodeId>;
 }
 
-impl<T: Transport> AllocationMessage<T> for NodeIDAllocationData {
+impl<T: Transport> AllocationMessage<T> for node_id_allocation_data_1_0::NodeIDAllocationData {
     const SUBJECT: SubjectId = node_id_allocation_data_1_0::SUBJECT;
+    const PAYLOAD_SIZE_MAX: usize = 9;
 
     fn with_unique_id(id: &[u8; 16]) -> Self {
         let id_hash = crc_64we_48_bits(id);
-        NodeIDAllocationData {
+        Self {
             unique_id_hash: id_hash,
             allocated_node_id: heapless::Vec::new(),
         }
@@ -172,4 +176,26 @@ fn crc_64we_48_bits(id: &[u8; 16]) -> u64 {
     crc.digest(id);
     let value = crc.get_crc();
     value & 0x0000_ffff_ffff_ffff
+}
+
+impl<T: Transport> AllocationMessage<T> for node_id_allocation_data_2_0::NodeIDAllocationData {
+    const SUBJECT: SubjectId = node_id_allocation_data_2_0::SUBJECT;
+    const PAYLOAD_SIZE_MAX: usize = 18;
+
+    fn with_unique_id(id: &[u8; 16]) -> Self {
+        Self {
+            unique_id: *id,
+            node_id: ID { value: 0 },
+        }
+    }
+
+    fn matches_unique_id(&self, id: &[u8; 16]) -> bool {
+        self.unique_id == *id
+    }
+
+    fn node_id(&self) -> Option<<T as Transport>::NodeId> {
+        // The message may allow a wider range of node IDs than the transport allows.
+        // If the ID is too large, return None.
+        T::NodeId::try_from(self.node_id.value).ok()
+    }
 }
