@@ -41,7 +41,7 @@ where
     transmitter: T,
     receiver: U,
     driver: D,
-    node_id: <T::Transport as Transport>::NodeId,
+    node_id: Option<<T::Transport as Transport>::NodeId>,
     publishers: FnvIndexMap<SubjectId, Publisher<C, T>, P>,
     requesters: FnvIndexMap<ServiceId, Requester<C, T, TR>, R>,
 }
@@ -64,6 +64,31 @@ where
     pub fn new(
         clock: C,
         node_id: <T::Transport as Transport>::NodeId,
+        transmitter: T,
+        receiver: U,
+        driver: D,
+    ) -> Self {
+        Self::new_inner(clock, Some(node_id), transmitter, receiver, driver)
+    }
+
+    /// Creates a node
+    ///
+    /// * `clock`: A clock to use for frame deadlines and timeouts
+    /// * `transmitter`: A transport transmitter
+    /// * `receiver`: A transport receiver
+    /// * `driver`: A driver compatible with `receiver` and `transmitter`
+    pub fn new_anonymous(
+        clock: C,
+        transmitter: T,
+        receiver: U,
+        driver: D,
+    ) -> Self {
+        Self::new_inner(clock, None, transmitter, receiver, driver)
+    }
+
+    fn new_inner(
+        clock: C,
+        node_id: Option<<T::Transport as Transport>::NodeId>,
         transmitter: T,
         receiver: U,
         driver: D,
@@ -147,7 +172,7 @@ where
                 transfer_id: token.transfer,
                 priority: token.priority,
                 service: token.service,
-                source: self.node_id.clone(),
+                source: self.node_id.clone().unwrap(),
                 destination: token.client,
             }),
             loopback: false,
@@ -155,6 +180,22 @@ where
         };
         self.transmitter
             .push(transfer_out, &mut self.clock, &mut self.driver)
+    }
+
+    /// Returns the identifier of this node
+    pub fn node_id(&self) -> Option<<T::Transport as Transport>::NodeId> {
+        self.node_id.clone()
+    }
+
+    /// Sets the identifier of this node
+    ///
+    /// The caller must ensure that no requesters are active when this method is called and update the receiver's ID
+    pub fn set_node_id(&mut self, node_id: Option<<T::Transport as Transport>::NodeId>) {
+        if node_id.is_none() {
+            assert!(self.requesters.is_empty());
+        }
+        self.node_id = node_id;
+        // self.receiver.set_id(node_id);
     }
 }
 
@@ -198,7 +239,7 @@ where
             self.publishers
                 .insert(
                     subject,
-                    Publisher::new(self.node_id.clone(), timeout, priority),
+                    Publisher::new(timeout, priority),
                 )
                 .map(|_| token)
                 .map_err(|_| StartSendError::Memory(OutOfMemoryError))
@@ -222,6 +263,7 @@ where
             .expect("Bug: Token exists but no publisher");
         publisher.publish(
             &mut self.clock,
+            self.node_id.clone(),
             token.0,
             payload,
             &mut self.transmitter,
@@ -243,6 +285,7 @@ where
             .expect("Bug: Token exists but no publisher");
         publisher.publish_loopback(
             &mut self.clock,
+            self.node_id.clone(),
             token.0,
             payload,
             &mut self.transmitter,
@@ -263,6 +306,7 @@ where
     where
         M: Request,
     {
+        assert!(self.node_id.is_some());
         let token = ServiceToken(service, PhantomData);
         if self.requesters.contains_key(&service) {
             Err(StartSendError::Duplicate)
@@ -270,7 +314,7 @@ where
             self.requesters
                 .insert(
                     service,
-                    Requester::new(self.node_id.clone(), receive_timeout, priority),
+                    Requester::new(receive_timeout, priority),
                 )
                 .map_err(|_| StartSendError::Memory(OutOfMemoryError))?;
             match self.receiver.subscribe_response(
@@ -317,6 +361,7 @@ where
             .expect("Bug: No requester for token");
         requester.send(
             &mut self.clock,
+            self.node_id.clone().unwrap(),
             token.0,
             payload,
             destination,
@@ -343,6 +388,7 @@ where
             .expect("Bug: No requester for token");
         requester.send_loopback(
             &mut self.clock,
+            self.node_id.clone().unwrap(),
             token.0,
             payload,
             destination,
@@ -430,6 +476,6 @@ where
 
     /// Returns the identifier of this node
     fn node_id(&self) -> <Self::Transport as Transport>::NodeId {
-        self.node_id.clone()
+        self.node_id.clone().unwrap()
     }
 }
