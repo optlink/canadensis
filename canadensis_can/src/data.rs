@@ -139,6 +139,22 @@ impl<I> Frame<I> {
     pub fn data(&self) -> &[u8] {
         &self.data
     }
+
+    /// Returns the DLC (data length code) of this frame
+    pub fn dlc(&self) -> u8 {
+        let len = self.data.len();
+        match len {
+            0..=8 => len as u8,
+            9..=12 => 9,
+            13..=16 => 10,
+            17..=20 => 11,
+            21..=24 => 12,
+            25..=32 => 13,
+            33..=48 => 14,
+            49..=64 => 15,
+            _ => 0,
+        }
+    }
 }
 
 impl<I: Clone> Frame<I> {
