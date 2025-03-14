@@ -77,12 +77,7 @@ where
     /// * `transmitter`: A transport transmitter
     /// * `receiver`: A transport receiver
     /// * `driver`: A driver compatible with `receiver` and `transmitter`
-    pub fn new_anonymous(
-        clock: C,
-        transmitter: T,
-        receiver: U,
-        driver: D,
-    ) -> Self {
+    pub fn new_anonymous(clock: C, transmitter: T, receiver: U, driver: D) -> Self {
         Self::new_inner(clock, None, transmitter, receiver, driver)
     }
 
@@ -181,22 +176,6 @@ where
         self.transmitter
             .push(transfer_out, &mut self.clock, &mut self.driver)
     }
-
-    /// Returns the identifier of this node
-    pub fn node_id(&self) -> Option<<T::Transport as Transport>::NodeId> {
-        self.node_id.clone()
-    }
-
-    /// Sets the identifier of this node
-    ///
-    /// The caller must ensure that no requesters are active when this method is called and update the receiver's ID
-    pub fn set_node_id(&mut self, node_id: Option<<T::Transport as Transport>::NodeId>) {
-        if node_id.is_none() {
-            assert!(self.requesters.is_empty());
-        }
-        self.node_id = node_id;
-        // self.receiver.set_id(node_id);
-    }
 }
 
 impl<C, T, U, N, TR, D, const P: usize, const R: usize> Node for CoreNode<C, T, U, TR, D, P, R>
@@ -237,10 +216,7 @@ where
             Err(StartSendError::Duplicate)
         } else {
             self.publishers
-                .insert(
-                    subject,
-                    Publisher::new(timeout, priority),
-                )
+                .insert(subject, Publisher::new(timeout, priority))
                 .map(|_| token)
                 .map_err(|_| StartSendError::Memory(OutOfMemoryError))
         }
@@ -312,10 +288,7 @@ where
             Err(StartSendError::Duplicate)
         } else {
             self.requesters
-                .insert(
-                    service,
-                    Requester::new(receive_timeout, priority),
-                )
+                .insert(service, Requester::new(receive_timeout, priority))
                 .map_err(|_| StartSendError::Memory(OutOfMemoryError))?;
             match self.receiver.subscribe_response(
                 service,
@@ -475,7 +448,11 @@ where
     }
 
     /// Returns the identifier of this node
-    fn node_id(&self) -> <Self::Transport as Transport>::NodeId {
-        self.node_id.clone().unwrap()
+    fn node_id(&self) -> Option<<Self::Transport as Transport>::NodeId> {
+        self.node_id.clone()
+    }
+
+    fn set_node_id(&mut self, node_id: <Self::Transport as Transport>::NodeId) {
+        self.node_id = Some(node_id);
     }
 }
