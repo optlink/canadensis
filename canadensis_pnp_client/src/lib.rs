@@ -15,11 +15,13 @@ extern crate canadensis_filter_config;
 extern crate crc_any;
 extern crate heapless;
 
-use canadensis::anonymous::AnonymousPublisher;
-use canadensis::core::time::{milliseconds, Clock};
-use canadensis::core::transport::{Receiver, Transmitter, Transport};
+use alloc::vec::Vec;
+use canadensis::core::time::{milliseconds, Instant};
+use canadensis::core::transfer::MessageTransfer;
+use canadensis::core::transport::Transport;
 use canadensis::core::{Priority, SubjectId};
 use canadensis::encoding::{Deserialize, Message, Serialize};
+use canadensis::{Node, PublishToken, TransferHandler};
 use canadensis_data_types::uavcan::node::id_1_0::ID;
 use canadensis_data_types::uavcan::pnp::{
     node_id_allocation_data_1_0, node_id_allocation_data_2_0,
@@ -29,97 +31,80 @@ use core::marker::PhantomData;
 use crc_any::CRCu64;
 
 /// A plug-and-play allocation client that can be used to find a node ID
-pub struct PnpClient<C: Clock, M, T: Transmitter<C>, R: Receiver<C>> {
+pub struct PnpClient<N, M> {
     /// The unique ID of this node
     unique_id: [u8; 16],
-    /// Publisher used to send messages
-    publisher: AnonymousPublisher<C, M, T>,
-    /// Transmitter used along with the publisher to send messages
-    transmitter: T,
-    /// Receiver used to receive messages
-    receiver: R,
-    _message: PhantomData<M>,
+    publish_token: Option<PublishToken<M>>,
+    _node: PhantomData<N>,
 }
 
-impl<C, M, T, R, P> PnpClient<C, M, T, R>
+impl<N, M> PnpClient<N, M>
 where
-    C: Clock,
-    M: AllocationMessage<P>,
-    T: Transmitter<C, Transport = P>,
-    R: Receiver<C, Transport = P>,
-    P: Transport,
+    N: Node,
+    M: AllocationMessage<N::Transport>,
 {
     /// Creates a new plug-and-play client
     ///
     /// * `unique_id`: The unique ID of this node
-    pub fn new(
-        transmitter: T,
-        mut receiver: R,
-        unique_id: [u8; 16],
-        driver: &mut R::Driver,
-    ) -> Result<Self, R::Error> {
-        receiver.subscribe_message(M::SUBJECT, M::PAYLOAD_SIZE_MAX, milliseconds(1000), driver)?;
+    pub fn new(node: &mut N, unique_id: [u8; 16]) -> Result<Self, ()> {
+        node.subscribe_message(M::SUBJECT, M::PAYLOAD_SIZE_MAX, milliseconds(1000))
+            .map_err(|_| ())?;
+        let token = node
+            .start_publishing(M::SUBJECT, milliseconds(1000), Priority::Nominal.into())
+            .map_err(|_| ())?;
 
         Ok(PnpClient {
             unique_id,
-            publisher: AnonymousPublisher::new(
-                M::SUBJECT,
-                Priority::Nominal.into(),
-                milliseconds(1000),
-            ),
-            transmitter,
-            receiver,
-            _message: PhantomData,
+            publish_token: Some(token),
+            _node: PhantomData,
         })
     }
 
-    /// Creates an outgoing node ID allocation message and gives it to the transmitter
-    pub fn send_request(&mut self, clock: &mut C, driver: &mut T::Driver) {
+    /// Creates an outgoing node ID allocation message and gives it to the node
+    pub fn send_request(&mut self, node: &mut impl Node) {
         let message = M::with_unique_id(&self.unique_id);
-        let status = self
-            .publisher
-            .send(&message, clock, &mut self.transmitter, driver);
+        let status = node.publish(self.publish_token.as_ref().unwrap(), &message);
         match status {
             Ok(()) => {}
             Err(_) => panic!("Can't fit transfer into one frame"),
         }
     }
 
-    /// Handles an incoming frame and checks if it provides an ID for this node
-    ///
-    /// This function returns the node ID if one was assigned.
-    pub fn receive(
+    /// Returns a handler for the client
+    pub fn handler(&mut self) -> PnpClientHandler<'_, N, M> {
+        PnpClientHandler { client: self }
+    }
+}
+
+/// Handler for the client
+pub struct PnpClientHandler<'a, N, M> {
+    client: &'a mut PnpClient<N, M>
+}
+
+impl<N, M, I> TransferHandler<I, N::Transport> for PnpClientHandler<'_, N, M>
+where
+    N: Node,
+    M: AllocationMessage<N::Transport>,
+    I: Instant,
+{
+    fn handle_message<N2: Node<Transport = N::Transport>>(
         &mut self,
-        clock: &mut C,
-        driver: &mut R::Driver,
-    ) -> Result<Option<P::NodeId>, R::Error> {
-        if let Some(transfer_in) = self.receiver.receive(clock, driver)? {
-            if let Ok(message) = M::deserialize_from_bytes(&transfer_in.payload) {
-                if message.matches_unique_id(&self.unique_id) {
+        node: &mut N2,
+        transfer: &MessageTransfer<Vec<u8>, N2::Instant, N2::Transport>,
+    ) -> bool {
+        if self.client.publish_token.is_some() {
+            if let Ok(message) = M::deserialize_from_bytes(&transfer.payload) {
+                if message.matches_unique_id(&self.client.unique_id) {
                     if let Some(node_id) = message.node_id() {
-                        return Ok(Some(node_id));
+                        node.set_node_id(node_id);
+                        node.unsubscribe_message(M::SUBJECT);
+                        node.stop_publishing(self.client.publish_token.take().unwrap());
+                        return true;
                     }
                 }
             }
         }
-        Ok(None)
-    }
-
-    /// Returns a reference to the transmitter
-    pub fn transmitter(&self) -> &T {
-        &self.transmitter
-    }
-    /// Returns a mutable reference to the transmitter
-    pub fn transmitter_mut(&mut self) -> &mut T {
-        &mut self.transmitter
-    }
-    /// Returns a reference to the receiver
-    pub fn receiver(&self) -> &R {
-        &self.receiver
-    }
-    /// Returns a mutable reference to the receiver
-    pub fn receiver_mut(&mut self) -> &mut R {
-        &mut self.receiver
+        false
     }
 }
 
