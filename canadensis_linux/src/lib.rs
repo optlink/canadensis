@@ -15,24 +15,29 @@ use canadensis_can::{CanNodeId, Frame};
 use canadensis_core::subscription::Subscription;
 use canadensis_core::time::{Clock, Microseconds32};
 use canadensis_core::{nb, OutOfMemoryError};
-use socketcan::{CanSocket, EmbeddedFrame, Id, Socket, SocketOptions};
+use socketcan::frame::AsPtr;
+use socketcan::{EmbeddedFrame, Id, Socket, SocketOptions};
 use std::convert::TryInto;
 use std::io;
 use std::io::ErrorKind;
 
 /// An adapter between SocketCAN and the canadensis frame format
-pub struct LinuxCan {
-    socket: CanSocket,
+pub struct LinuxCan<S: Socket> {
+    socket: S,
 }
 
-impl LinuxCan {
+impl<S: Socket> LinuxCan<S> {
     /// Creates a Linux CAN adapter around a SocketCAN socket
-    pub fn new(socket: CanSocket) -> Self {
+    pub fn new(socket: S) -> Self {
         LinuxCan { socket }
     }
 }
 
-impl TransmitDriver<SystemClock> for LinuxCan {
+impl<S> TransmitDriver<SystemClock> for LinuxCan<S>
+where
+    S: Socket,
+    S::FrameType: AsPtr + EmbeddedFrame,
+{
     type Error = io::Error;
 
     fn try_reserve(&mut self, _frames: usize) -> Result<(), OutOfMemoryError> {
@@ -51,7 +56,7 @@ impl TransmitDriver<SystemClock> for LinuxCan {
             log::warn!("Dropping frame that has missed its deadline");
             return Ok(None);
         }
-        let socketcan_frame = socketcan::CanFrame::new(
+        let socketcan_frame = <S::FrameType as EmbeddedFrame>::new(
             socketcan::Id::Extended(
                 socketcan::ExtendedId::new(frame.id().into()).expect("Invalid CAN ID"),
             ),
@@ -76,13 +81,19 @@ impl TransmitDriver<SystemClock> for LinuxCan {
     }
 }
 
-impl ReceiveDriver<SystemClock> for LinuxCan {
+impl<S> ReceiveDriver<SystemClock> for LinuxCan<S>
+where
+    S: Socket + SocketOptions,
+    S::FrameType: EmbeddedFrame,
+{
     type Error = io::Error;
 
     fn receive(&mut self, clock: &mut SystemClock) -> nb::Result<Frame, Self::Error> {
         loop {
             let socketcan_frame = self.socket.read_frame()?;
-            if socketcan_frame.data().len() <= canadensis_can::FRAME_CAPACITY {
+            if <S::FrameType as EmbeddedFrame>::data(&socketcan_frame).len()
+                <= canadensis_can::FRAME_CAPACITY
+            {
                 let raw_id = match socketcan_frame.id() {
                     Id::Standard(_) => continue,
                     Id::Extended(id) => id.as_raw(),
@@ -102,9 +113,9 @@ impl ReceiveDriver<SystemClock> for LinuxCan {
         }
     }
 
-    fn apply_filters<S>(&mut self, local_node: Option<CanNodeId>, subscriptions: S)
+    fn apply_filters<SU>(&mut self, local_node: Option<CanNodeId>, subscriptions: SU)
     where
-        S: IntoIterator<Item = Subscription>,
+        SU: IntoIterator<Item = Subscription>,
     {
         optimize_filters(local_node, subscriptions, usize::MAX, |optimized| {
             let socketcan_filters = optimized
