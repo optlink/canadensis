@@ -11,6 +11,7 @@ use core::convert::{TryFrom, TryInto};
 use core::fmt::Debug;
 use core::marker::PhantomData;
 
+use defmt_or_log::{debug, expect, info, unwrap};
 use fallible_collections::FallibleVec;
 
 use crate::data::{CanId, Frame};
@@ -276,7 +277,7 @@ where
             Some(data) => data,
             None => {
                 // Can't use this frame
-                log::debug!("Frame failed sanity checks, ignoring");
+                debug!("Frame failed sanity checks, ignoring");
                 self.increment_error_count();
                 return Ok(None);
             }
@@ -320,7 +321,7 @@ where
                 }
                 Ok(None) => Ok(None),
                 Err(e) => {
-                    log::info!("Receiver accept error {:?}", e);
+                    info!("Receiver accept error {:?}", e);
                     self.increment_error_count();
                     match e {
                         SubscriptionError::Session(SessionError::Memory(e))
@@ -351,7 +352,7 @@ where
             if message_header.source.is_none() {
                 // Anonymous message transfers must always fit into one frame
                 if !(tail_byte.toggle && tail_byte.start && tail_byte.end) {
-                    log::debug!("Anonymous multi-frame transfer, ignoring");
+                    debug!("Anonymous multi-frame transfer, ignoring");
                     return None;
                 }
             }
@@ -425,13 +426,13 @@ where
 
     fn apply_frame_filters(&mut self, driver: &mut D) {
         let message_subscriptions = self.subscriptions_message.iter().map(|sub| {
-            canadensis_core::subscription::Subscription::Message(sub.port_id().try_into().unwrap())
+            canadensis_core::subscription::Subscription::Message(unwrap!(sub.port_id().try_into()))
         });
         let request_subscriptions = self.subscriptions_request.iter().map(|sub| {
-            canadensis_core::subscription::Subscription::Request(sub.port_id().try_into().unwrap())
+            canadensis_core::subscription::Subscription::Request(unwrap!(sub.port_id().try_into()))
         });
         let response_subscriptions = self.subscriptions_response.iter().map(|sub| {
-            canadensis_core::subscription::Subscription::Response(sub.port_id().try_into().unwrap())
+            canadensis_core::subscription::Subscription::Response(unwrap!(sub.port_id().try_into()))
         });
         let all_subscriptions = message_subscriptions
             .chain(request_subscriptions)
@@ -476,9 +477,11 @@ fn parse_can_id(
     }
     // Ignore bits 22 and 21
 
-    let priority = Priority::try_from(bits.get_u8(26)).expect("Bug: Invalid priority");
-    let source_id =
-        CanNodeId::try_from(bits.get_u8(0) & 0x7f).expect("Bug: Invalid source node ID");
+    let priority = expect!(Priority::try_from(bits.get_u8(26)), "Bug: Invalid priority");
+    let source_id = expect!(
+        CanNodeId::try_from(bits.get_u8(0) & 0x7f),
+        "Bug: Invalid source node ID"
+    );
 
     let header = if bits.bit_set(25) {
         // Service
@@ -486,11 +489,15 @@ fn parse_can_id(
             timestamp,
             transfer_id,
             priority,
-            service: ServiceId::try_from(bits.get_u16(14) & 0x1ff)
-                .expect("Bug: Invalid service ID"),
+            service: expect!(
+                ServiceId::try_from(bits.get_u16(14) & 0x1ff),
+                "Bug: Invalid service ID"
+            ),
             source: source_id,
-            destination: CanNodeId::try_from(bits.get_u8(7) & 0x7f)
-                .expect("Bug: Invalid destination node ID"),
+            destination: expect!(
+                CanNodeId::try_from(bits.get_u8(7) & 0x7f),
+                "Bug: Invalid destination node ID"
+            ),
         };
         if bits.bit_set(24) {
             // Request
@@ -512,8 +519,10 @@ fn parse_can_id(
             timestamp,
             transfer_id,
             priority,
-            subject: SubjectId::try_from(bits.get_u16(8) & 0x1fff)
-                .expect("Bug: Invalid subject ID"),
+            subject: expect!(
+                SubjectId::try_from(bits.get_u16(8) & 0x1fff),
+                "Bug: Invalid subject ID"
+            ),
             source: message_source_id,
         };
         Header::Message(message_header)
@@ -647,7 +656,7 @@ impl TailByte {
             start: bits.bit_set(7),
             end: bits.bit_set(6),
             toggle: bits.bit_set(5),
-            transfer_id: (bits & 0x1f).try_into().expect("Bug: Invalid transfer ID"),
+            transfer_id: expect!((bits & 0x1f).try_into(), "Bug: Invalid transfer ID"),
         }
     }
 }
