@@ -22,3 +22,7 @@ members = [
     "canadensis_udp",
     "canadensis_write_crc"
 ]
+
+[workspace.dependencies]
+defmt = "1.0.1"
+defmt-or-log = { git = "https://github.com/optlink/defmt-or-log.git", rev = "8094b313ec2c50dbfcaddd386dcf6e7702928242" }

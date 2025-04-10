@@ -12,6 +12,8 @@ description = "A Cyphal implementation: Transfer encoding and decoding"
 [dependencies]
 half = { version = ">=2.2, <2.5", default-features = false }
 zerocopy = "0.6.0"
+defmt.workspace = true
+defmt-or-log.workspace = true
 
 [dev-dependencies]
 heapless = "0.8.0"

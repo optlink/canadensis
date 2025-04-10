@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use core::mem;
 
 use crate::types::CanTransferId;
+use defmt_or_log::{assert, assert_eq, unwrap};
 use fallible_collections::{FallibleVec, TryReserveError};
 
 use super::TailByte;
@@ -55,7 +56,7 @@ impl Buildup {
             "Can't reassemble with an empty frame"
         );
         // Check tail byte
-        let tail = TailByte::parse(*frame_data.last().unwrap());
+        let tail = TailByte::parse(*unwrap!(frame_data.last()));
         if tail.start != self.expect_start {
             return Err(BuildupError::InvalidStart);
         }
@@ -138,7 +139,7 @@ mod test {
                 0xe0 | transfer_id,
             ];
 
-            assert_eq!(Some(payload.to_vec()), buildup.add(&frame).unwrap());
+            ::core::assert_eq!(Some(payload.to_vec()), buildup.add(&frame).unwrap());
         }
 
         fn make_heartbeat_payload(uptime: u32) -> [u8; 7] {
@@ -170,7 +171,7 @@ mod test {
                 Buildup::new(CanTransferId::try_from(transfer_id).unwrap(), 16).unwrap();
 
             // Put in the payload bytes
-            assert_eq!(Some(payload.to_vec()), buildup.add(&frame).unwrap());
+            ::core::assert_eq!(Some(payload.to_vec()), buildup.add(&frame).unwrap());
         }
 
         fn make_frame(payload: &[u8; 15], transfer_id: u8) -> [u8; 16] {
@@ -188,7 +189,7 @@ mod test {
     #[test]
     fn test_node_info_request() {
         let mut buildup = Buildup::new(CanTransferId::try_from(1).unwrap(), 0).unwrap();
-        assert_eq!(Some(Vec::new()), buildup.add(&[0xe1]).unwrap());
+        ::core::assert_eq!(Some(Vec::new()), buildup.add(&[0xe1]).unwrap());
     }
 
     #[test]
@@ -228,9 +229,9 @@ mod test {
 
         for (i, frame) in frames.iter().enumerate() {
             if i != frames.len() - 1 {
-                assert_eq!(None, buildup.add(*frame).unwrap());
+                ::core::assert_eq!(None, buildup.add(*frame).unwrap());
             } else {
-                assert_eq!(Some(payload.to_vec()), buildup.add(*frame).unwrap());
+                ::core::assert_eq!(Some(payload.to_vec()), buildup.add(*frame).unwrap());
             }
         }
     }
@@ -271,9 +272,9 @@ mod test {
 
         for (i, frame) in frames.iter().enumerate() {
             if i != frames.len() - 1 {
-                assert_eq!(None, buildup.add(*frame).unwrap());
+                ::core::assert_eq!(None, buildup.add(*frame).unwrap());
             } else {
-                assert_eq!(Some(payload.to_vec()), buildup.add(*frame).unwrap());
+                ::core::assert_eq!(Some(payload.to_vec()), buildup.add(*frame).unwrap());
             }
         }
     }

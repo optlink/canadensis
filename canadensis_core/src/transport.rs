@@ -8,6 +8,7 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::fmt::Debug;
 use core::hash::Hash;
+use defmt_or_log::FormatOrDebug;
 
 /// Basic requirements for a transport that can be used to send and receive transfers
 ///
@@ -33,7 +34,7 @@ where
     /// An error type
     ///
     /// This type must have an out-of-memory variant that can hold an `OutOfMemoryError`.
-    type Error: Debug + From<OutOfMemoryError>;
+    type Error: FormatOrDebug + From<OutOfMemoryError>;
 
     /// Starts the process of sending an outgoing transfer
     ///
@@ -83,7 +84,7 @@ where
     /// An error type
     ///
     /// This type must have an out-of-memory variant that can hold an `OutOfMemoryError`.
-    type Error: Debug + From<OutOfMemoryError>;
+    type Error: FormatOrDebug + From<OutOfMemoryError>;
 
     /// Checks for incoming frames and processes them, possibly returning a transfer
     ///

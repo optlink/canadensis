@@ -12,9 +12,10 @@ description = "A Cyphal implementation: Node types and re-exports from some othe
 [dependencies]
 crc-any = { version = "2.4.0", default-features = false  }
 fallible_collections = "0.5.1"
-heapless = "0.8.0"
+heapless = { version = "0.8.0", features = ["defmt-03"] }
 half = { version = ">=2.2, <2.5", default-features = false }
-log = "0.4"
+defmt.workspace = true
+defmt-or-log.workspace = true
 
 # Depends on most other canadensis crates that are not transport-specific
 [dependencies.canadensis_core]
@@ -51,3 +52,5 @@ path = "../canadensis_serial"
 version = "0.4.1"
 path = "../canadensis_udp"
 
+[features]
+defmt = ["defmt-or-log/defmt"]

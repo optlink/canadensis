@@ -7,7 +7,7 @@ use canadensis_core::subscription::Subscription;
 use canadensis_core::time::Clock;
 use canadensis_core::{nb, OutOfMemoryError, ServiceId, SubjectId};
 use canadensis_filter_config::{optimize, Filter};
-use core::fmt::Debug;
+use defmt_or_log::FormatOrDebug;
 use fallible_collections::FallibleVec;
 
 /// A CAN driver that can send frames
@@ -22,7 +22,7 @@ where
     C: Clock,
 {
     /// The error type
-    type Error: Debug;
+    type Error: FormatOrDebug;
 
     /// Attempts to reserve space to transmit `frames` additional frames
     ///
@@ -49,7 +49,7 @@ where
     C: Clock,
 {
     /// The error type
-    type Error: Debug;
+    type Error: FormatOrDebug;
     /// Attempts to receive a frame without blocking
     fn receive(&mut self, clock: &mut C) -> nb::Result<Frame, Self::Error>;
 

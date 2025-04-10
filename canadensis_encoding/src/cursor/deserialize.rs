@@ -4,6 +4,7 @@
 
 use core::cmp;
 
+use defmt_or_log::{assert, assert_eq, debug_assert};
 use half::f16;
 
 use crate::{Deserialize, DeserializeError};
@@ -991,48 +992,48 @@ mod test {
     fn u8_one() {
         let bytes = [0xABu8];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_u8(), 0xAB);
+        ::core::assert_eq!(cursor.read_u8(), 0xAB);
     }
 
     #[test]
     fn u16_one() {
         let bytes = [0xCDu8, 0xAB];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_u16(), 0xABCD);
+        ::core::assert_eq!(cursor.read_u16(), 0xABCD);
     }
 
     #[test]
     fn u32_one() {
         let bytes = [0xD4u8, 0xC3, 0xB2, 0xA1];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_u32(), 0xA1B2C3D4);
+        ::core::assert_eq!(cursor.read_u32(), 0xA1B2C3D4);
     }
 
     #[test]
     fn u64_one() {
         let bytes = [0x67u8, 0x45, 0x23, 0x01, 0xD4, 0xC3, 0xB2, 0xA1];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_u64(), 0xA1B2C3D401234567);
+        ::core::assert_eq!(cursor.read_u64(), 0xA1B2C3D401234567);
     }
 
     #[test]
     fn f16_one() {
         let bytes = [0xCDu8, 0xAB];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_f16(), f16::from_bits(0xABCD));
+        ::core::assert_eq!(cursor.read_f16(), f16::from_bits(0xABCD));
     }
 
     #[test]
     fn f32_one() {
         let bytes = [0xD4u8, 0xC3, 0xB2, 0xA1];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_f32(), f32::from_bits(0xA1B2C3D4));
+        ::core::assert_eq!(cursor.read_f32(), f32::from_bits(0xA1B2C3D4));
     }
 
     #[test]
     fn f64_one() {
         let bytes = [0x67u8, 0x45, 0x23, 0x01, 0xD4, 0xC3, 0xB2, 0xA1];
         let mut cursor = ReadCursor::new(&bytes);
-        assert_eq!(cursor.read_f64(), f64::from_bits(0xA1B2C3D401234567));
+        ::core::assert_eq!(cursor.read_f64(), f64::from_bits(0xA1B2C3D401234567));
     }
 }

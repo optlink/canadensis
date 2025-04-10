@@ -11,7 +11,7 @@ use canadensis_serial::driver::{ReceiveDriver, TransmitDriver};
 use canadensis_serial::{
     SerialNodeId, SerialReceiver, SerialTransmitter, SerialTransport, Subscription,
 };
-use log::LevelFilter;
+use defmt_or_log::log::LevelFilter;
 use simplelog::{ColorChoice, TermLogger, TerminalMode};
 use std::collections::VecDeque;
 use std::convert::{Infallible, TryFrom, TryInto};

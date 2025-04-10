@@ -4,7 +4,6 @@ extern crate canadensis;
 extern crate canadensis_can;
 extern crate canadensis_data_types;
 extern crate canadensis_encoding;
-extern crate log;
 extern crate simplelog;
 
 use canadensis::node::CoreNode;
@@ -19,7 +18,7 @@ use canadensis_core::{OutOfMemoryError, Priority};
 use canadensis_data_types::uavcan::time::synchronization_1_0::{self, Synchronization};
 use canadensis_encoding::Deserialize;
 
-use log::LevelFilter;
+use defmt_or_log::log::{self, LevelFilter};
 use simplelog::{ColorChoice, Config, TerminalMode};
 use std::cell::Cell;
 use std::collections::vec_deque::VecDeque;

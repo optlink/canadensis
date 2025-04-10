@@ -14,7 +14,7 @@ use canadensis_data_types::uavcan::time::synchronized_timestamp_1_0::Synchronize
 use canadensis_encoding::Deserialize;
 use core::marker::PhantomData;
 use core::str;
-use log::{debug, warn};
+use defmt_or_log::{debug, unwrap, warn};
 
 /// A service that responds to `uavcan.register.List` and `uavcan.register.Access`
 pub struct RegisterServerService<N: Node, B: RegisterBlock> {
@@ -95,7 +95,7 @@ where
                             if name.len() > 256 {
                                 name = &name[0..256];
                             }
-                            let name = heapless::Vec::from_slice(name).unwrap();
+                            let name = unwrap!(heapless::Vec::from_slice(name));
                             ListResponse {
                                 name: Name { name },
                             }
