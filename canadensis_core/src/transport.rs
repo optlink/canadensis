@@ -189,6 +189,18 @@ where
 
     /// Unsubscribes from responses for a service
     fn unsubscribe_response(&mut self, service: ServiceId, driver: &mut Self::Driver);
+
+    /// Updates the identifier of this node
+    ///
+    /// This can be used after a node ID is identified to make this receiver capable of handling
+    /// service transfers.
+    fn set_id(&mut self, id: Option<<Self::Transport as Transport>::NodeId>);
+
+    /// Returns an iterator over all subscribers of this Receiver
+    fn subscribers(&self) -> impl Iterator<Item = SubjectId>;
+
+    /// Returns an iterator over all servers of this Receiver
+    fn servers(&self) -> impl Iterator<Item = ServiceId>;
 }
 
 /// Required operations for a transfer ID

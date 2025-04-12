@@ -214,6 +214,32 @@ where
         self.unsubscribe(TransferKind::Response, PortId::from(service));
         self.apply_frame_filters(driver);
     }
+
+    /// Updates the identifier of this node
+    ///
+    /// This can be used after a node ID is identified to make this receiver capable of handling
+    /// service transfers.
+    fn set_id(&mut self, id: Option<CanNodeId>) {
+        self.id = id;
+    }
+
+    /// Despite the use of `unwrap` this function should never panic as
+    /// [`Receiver::subscribe_message`] takes [`SubjectId`] as an argument and that is the only
+    /// way that [`CanReceiver::subscriptions_message`] can be modified
+    fn subscribers(&self) -> impl Iterator<Item = SubjectId> {
+        self.subscriptions_message
+            .iter()
+            .map(|x| x.port_id().try_into().unwrap())
+    }
+
+    /// Despite the use of `unwrap` this function should never panic as
+    /// [`Receiver::subscribe_request`] takes [`ServiceId`] as an argument and that is the only
+    /// way that [`CanReceiver::subscriptions_request`] can be modified
+    fn servers(&self) -> impl Iterator<Item = ServiceId> {
+        self.subscriptions_request
+            .iter()
+            .map(|x| x.port_id().try_into().unwrap())
+    }
 }
 
 impl<C, D> CanReceiver<C, D>
@@ -247,14 +273,6 @@ where
             _driver: PhantomData,
             _clock: PhantomData,
         }
-    }
-
-    /// Updates the identifier of this node
-    ///
-    /// This can be used after a node ID is identified to make this receiver capable of handling
-    /// service transfers.
-    pub fn set_id(&mut self, id: Option<CanNodeId>) {
-        self.id = id;
     }
 
     /// Handles an incoming CAN or CAN FD frame
